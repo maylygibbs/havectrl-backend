@@ -21,6 +21,26 @@ npm run start:dev
 
 El API queda en `http://127.0.0.1:3100`.
 
+## Base de datos
+
+Un solo comando crea todo. Postgres tiene que estar en marcha y el usuario de `.env` debe poder crear bases.
+
+```bash
+cp .env.example .env
+npm install
+npm run db:setup
+```
+
+Eso ejecuta `scripts/setup-db.mjs` y deja tres bases:
+
+| Base | Qué contiene |
+| --- | --- |
+| `havectrl_central` | Registro de hostnames. `demoa.localhost` apunta a `demoa` y `demob.localhost` apunta a `demob` |
+| `demoa` | Esquema del cliente y datos de demostración de Demo A |
+| `demob` | Esquema del cliente y datos de demostración de Demo B |
+
+El nombre de la central sale de `CENTRAL_DB_NAME`. Si el archivo `.env` no existe, el valor es `havectrl_central`. Se puede volver a ejecutar: no duplica usuarios, vuelos ni gastos.
+
 | Variable | Uso |
 | --- | --- |
 | `CENTRAL_DB_HOST` | Host de Postgres |
@@ -39,8 +59,8 @@ El API queda en `http://127.0.0.1:3100`.
 | `npm run build` | Compila a `dist/` |
 | `npm run start` | Arranca la compilación |
 | `npm run db:migrate` | Aplica migraciones pendientes de la central y de cada tenant registrado |
-| `npm run db:seed` | Deja `demoa` y `demob` en el registro, migra sus bases y carga el usuario de prueba |
-| `npm run db:setup` | Migra y luego ejecuta el seed |
+| `npm run db:seed` | Igual que `db:setup`: registra los clientes y carga los datos de demostración |
+| `npm run db:setup` | Crea `havectrl_central`, `demoa` y `demob`, migra y carga los datos de demostración |
 
 Las migraciones viven en `migrations/central` y `migrations/tenant`. Cada base guarda lo ya aplicado en `schema_migrations`.
 

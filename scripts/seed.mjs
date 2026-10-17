@@ -144,7 +144,9 @@ async function dropRetiredDatabases() {
   }
 }
 
-async function main() {
+export async function setup() {
+  console.log(`bases: ${env.database}, demoa, demob`);
+  // La central se crea primero. demoa y demob aparecen al quedar registradas.
   await migrateAll();
   const central = new pg.Client(env);
   await central.connect();
@@ -153,6 +155,7 @@ async function main() {
   } finally {
     await central.end();
   }
+  // Con el registro ya escrito, esta pasada crea y migra demoa y demob.
   await migrateAll();
   for (const tenant of TENANTS) {
     await seedTenant(tenant);
@@ -160,7 +163,10 @@ async function main() {
   await dropRetiredDatabases();
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+const isDirect = process.argv[1]?.endsWith('seed.mjs');
+if (isDirect) {
+  setup().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}
