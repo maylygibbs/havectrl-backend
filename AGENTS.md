@@ -16,6 +16,8 @@ Un registro, un identificador, una compañía. Aircraft, Flights y Maintenance l
 
 Esquema nuevo o cambio de columnas: archivo SQL en `migrations/central` o `migrations/tenant`, aplicado por `schema_migrations`. No se altera producción a mano ni se reescribe una migración ya aplicada.
 
+Toda tabla de datos del tenant tiene `deleted_at`. Los listados excluyen filas con `deleted_at` no nulo. No se borra en duro historial operativo. Preferencia de idioma en `identity.users.preferred_language` (`en` por defecto, `es` opcional).
+
 Vacío no es cero. Fecha con zona y UTC. Duración en minutos o segundos enteros. Contadores de célula, motor y hélice no se mezclan.
 
 Confirmar un LOG suma horas, ciclos y experiencia una vez. Reintentar no suma de nuevo. Corregir aplica la diferencia y guarda el valor anterior. Planificación y seguimiento no mueven horas reales.
@@ -45,3 +47,5 @@ NestJS y Fastify. TypeScript estricto. El dominio no nombra proveedores de mapas
 Validar identificadores de base antes de interpolarlos. No devolver claves, hashes ni cadenas de conexión. Un guardado fallido no responde éxito. Una operación repetida no duplica gasto, firma ni horas.
 
 Textos de API orientados al usuario salen del catálogo de idioma. Códigos oficiales (FPL, DLA, CHG, CNL, METAR, NOTAM, matrículas) no se traducen.
+
+El avance de soft delete, Crew CRUD e idioma está en [docs/producto/07-iteracion1-avance.md](docs/producto/07-iteracion1-avance.md).

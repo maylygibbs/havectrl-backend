@@ -14,9 +14,9 @@ Hasta que se elija una lista, la lectura del original queda en administrador y j
 
 Los manuales fijan logo HAVECTRL y paleta negra, blanca, plateada y azul cielo. El logo del operador entra solo en los PDF.
 
-La arquitectura ya creada guarda colores distintos por tenant y los pinta en toda la pantalla.
+La arquitectura ya creada guarda colores distintos por tenant.
 
-Hay que decidir si el tenant solo cambia el logo de los documentos exportados, o si también cambia el color de la aplicación.
+**Decisión en vigor (opción B):** cada cliente pinta la aplicación con sus colores de `branding` (`primary_color`, `accent_color`). El logo HAVECTRL permanece en la app. El logo del operador entra en PDF exportados cuando existan.
 
 ## 3. Qué entra en “mantenimiento básico”
 

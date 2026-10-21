@@ -1,5 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
-import { modulesFor } from '../access';
+import { BadRequestException, Body, Controller, Get, Post, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { ConfigRegistry } from '../tenancy/config-registry';
 import { hostnameFromHeaders } from '../tenancy/resolve-hostname';
 import { bindTenant, HaveRequest } from '../tenancy/tenant.middleware';
@@ -31,7 +30,7 @@ export class AuthController {
   @Post('auth/login')
   login(@Req() req: HaveRequest, @Body() body: { email?: string; password?: string }) {
     const tenant = bindTenant(req, this.registry);
-    if (!tenant) throw new BadRequestException('Dominio no registrado');
+    if (!tenant) throw new BadRequestException('Domain not registered');
     return this.auth.login(body.email ?? '', body.password ?? '', tenant.slug);
   }
 
@@ -39,15 +38,10 @@ export class AuthController {
   @UseGuards(AuthGuard)
   async me(@Req() req: HaveRequest) {
     const slug = req.tenantSlug;
-    if (!slug) throw new BadRequestException('Dominio no registrado');
-    const tenant = this.registry.getTenant(slug);
-    const branding = await this.registry.branding(slug);
-    const profile = req.user?.profile ?? '';
-    return {
-      user: { email: req.user?.sub ?? '', name: req.user?.name ?? '', profile },
-      modules: modulesFor(profile),
-      tenant: { slug: tenant.slug, name: tenant.name, database: tenant.database },
-      branding,
-    };
+    const email = req.user?.sub;
+    if (!slug || !email) throw new BadRequestException('Domain not registered');
+    const session = await this.auth.me(slug, email);
+    if (!session) throw new UnauthorizedException('Session expired');
+    return session;
   }
 }

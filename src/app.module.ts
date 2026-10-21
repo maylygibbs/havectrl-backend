@@ -6,6 +6,8 @@ import { AuthService } from './auth/auth.service';
 import { HealthController } from './health.controller';
 import { ConfigRegistry } from './tenancy/config-registry';
 import { TenantMiddleware } from './tenancy/tenant.middleware';
+import { FilesController } from './storage/files.controller';
+import { FilesService } from './storage/files.service';
 import { WorkspaceController } from './workspace/workspace.controller';
 import { WorkspaceService } from './workspace/workspace.service';
 
@@ -16,8 +18,8 @@ import { WorkspaceService } from './workspace/workspace.service';
       signOptions: { expiresIn: '12h' },
     }),
   ],
-  controllers: [HealthController, AuthController, WorkspaceController],
-  providers: [ConfigRegistry, AuthService, AuthGuard, WorkspaceService],
+  controllers: [HealthController, AuthController, WorkspaceController, FilesController],
+  providers: [ConfigRegistry, AuthService, AuthGuard, WorkspaceService, FilesService],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

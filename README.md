@@ -86,6 +86,17 @@ curl -H 'Origin: http://demoa.localhost:5174' http://127.0.0.1:3100/common/domai
 | `GET` | `/common/domain/config` | Compañía y branding del hostname |
 | `POST` | `/auth/login` | Sesión si el usuario existe en la base de ese tenant |
 | `GET` | `/auth/me` | Sesión vigente, anclada al hostname |
+| `GET` | `/crew` | Tripulación activa |
+| `POST` | `/crew` | Alta de trabajador |
+| `PUT` | `/crew/:id` | Edición |
+| `DELETE` | `/crew/:id` | Soft delete |
+| `PATCH` | `/settings/language` | Preferencia `en` / `es` |
+
+## Pruebas
+
+```bash
+npm test
+```
 
 ## Documentación
 

@@ -55,7 +55,7 @@ El branding de cada compañía está en su base, tabla `branding` (una fila): no
 
 `GET /common/domain/config` resuelve el hostname y lee esa fila. El front la aplica al cargar, antes del login. Un hostname desconocido responde `ok: false` y no muestra datos de otro cliente.
 
-La marca de la plataforma sigue siendo HAVECTRL. El logo del operador, cuando exista, entra en los documentos exportados. Pintar toda la aplicación con el color del tenant está en pausa: ver la duda 2 en [05-dudas.md](05-dudas.md).
+La marca de la plataforma sigue siendo HAVECTRL (logo fijo). Cada tenant pinta acentos y acciones con sus colores de `branding` (decisión B de la duda 2 en [05-dudas.md](05-dudas.md)). El logo del operador, cuando exista, entra en los documentos exportados.
 
 ## Migraciones
 

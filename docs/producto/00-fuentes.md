@@ -40,3 +40,5 @@ Este paquete es la especificación de producto. No sustituye los manuales del op
 4. Una pantalla de demostración no cuenta como función terminada.
 
 Los choques que no se pueden cerrar con esa regla están en [05-dudas.md](05-dudas.md).
+
+El avance de implementación de la iteración 1 (soft delete, Crew CRUD, idioma) está en [07-iteracion1-avance.md](07-iteracion1-avance.md).
