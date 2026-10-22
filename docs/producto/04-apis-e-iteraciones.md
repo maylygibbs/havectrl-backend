@@ -97,3 +97,7 @@ No son compras de mapa ni de ADS-B. Se cotizan solas:
 ## Pruebas que la iteración 1 ya debe poder correr
 
 Separación de compañías, ámbito de Crew, reserva SMS, un solo LOG visto desde Flights y Maintenance, contadores sin doble suma, revisión administrativa distinta de liberación, gastos sin aprobación propia, lectura que no edita, y revocación de sesión. Los identificadores están en el volumen 01 (ACC-01 a ACC-20), en roles (RP01 a RP10) y en cada manual de módulo. RP11 a RP14, de Flight Tracking, se ejecutan cuando esa pestaña exista: en la iteración 1 el resultado esperado es que nadie pueda abrirla.
+
+## Seguimiento de cierre
+
+Checklist vivo por hito (1A, 1B, 1C, entrega y bloqueantes): [iteracion-1-cierre.md](../tecnico/iteracion-1-cierre.md). Resumen negocio: [iteracion-1-cierre.md](../negocio/iteracion-1-cierre.md).

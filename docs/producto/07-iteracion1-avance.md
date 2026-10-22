@@ -6,21 +6,30 @@ Registro tecnico de lo ya entregado en codigo. No sustituye el corte de [04-apis
 
 Todas las tablas de datos del tenant llevan `deleted_at timestamptz` (migracion `004_soft_delete_and_locale.sql`). Los listados y los conteos de Home filtran `WHERE deleted_at IS NULL`.
 
-Borrar un trabajador de Crew pone `deleted_at = now()`, marca `status = 'inactive'` y desactiva en cascada logica sus `assignments` y `experience`. El registro permanece en la base.
+Borrar un trabajador de Crew pone `deleted_at = now()`, marca `status = 'inactive'` y desactiva en cascada logica sus `assignments`, `experience` y `worker_documents`. El registro permanece en la base.
 
 ## Idioma
 
 `identity.users.preferred_language` admite `en` (por defecto) o `es`. El login y `GET /auth/me` lo devuelven. `PATCH /settings/language` lo actualiza para cualquier perfil autenticado (no exige el modulo Settings).
+
+## Crew (cierre 1A)
+
+Módulo cerrado para el hito 1A: Data (CRUD, documentos, adjuntos), Schedule manual y Experience en lectura demo. Guía QA en `/docs/tecnico/crew-cierre-1a.md` del monorepo local.
 
 ## Crew CRUD
 
 | Metodo | Ruta | Efecto |
 | --- | --- | --- |
 | `GET` | `/crew` | Lista vivos |
-| `GET` | `/crew/:id` | Detalle + asignaciones + experiencia |
+| `GET` | `/crew/:id` | Detalle + asignaciones + experiencia + documentos + adjuntos |
 | `POST` | `/crew` | Alta |
 | `PUT` | `/crew/:id` | Edicion parcial |
 | `DELETE` | `/crew/:id` | Soft delete |
+| `POST` | `/crew/:id/documents` | Alta registro (language, travel, training, other) |
+| `PUT` | `/crew/documents/:documentId` | Edicion parcial |
+| `DELETE` | `/crew/documents/:documentId` | Soft delete |
+
+Tabla tenant `crew.worker_documents` (migracion `007_crew_worker_documents.sql`). Archivos binarios con `POST /files` (`module=crew`, `entityId` = id del trabajador).
 
 ## Marca de la aplicacion
 
@@ -44,7 +53,8 @@ Pack oficial integrado en `havectrl-frontend/public/` (heroes + logos) y archiva
 - Schedule manual: `GET/POST/DELETE` en `/crew/assignments` y `/crew/:id/assignments`.
 - Settings: `GET /settings/company` (branding del tenant).
 - Matriz de acceso cubierta por `access.spec.ts`.
-- Checklist vivo: `/docs/tecnico/iteracion-1a-checklist.md`.
+- Checklist 1A: `docs/tecnico/iteracion-1a-checklist.md`.
+- Checklist cierre MVP (1A+1B+1C): `docs/tecnico/iteracion-1-cierre.md`.
 
 ## Pruebas
 

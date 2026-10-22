@@ -5,7 +5,11 @@ import { homeOpenSmsCount, smsInboxRowsAllowed } from '../home-metrics';
 import { ConfigRegistry } from '../tenancy/config-registry';
 import { HaveRequest } from '../tenancy/tenant.middleware';
 import { AircraftDocumentInput, normalizeAircraftDocument } from './aircraft-document.util';
+import { CrewAssignmentInput, normalizeCrewAssignment } from './crew-assignment.util';
+import { CrewDocumentInput, normalizeCrewDocument } from './crew-document.util';
 import { CrewInput, mapPgUnique, normalizeCrew } from './crew.util';
+import { FlightLegInput, normalizeFlightLeg } from './flight-leg.util';
+import { FlightLogInput, normalizeFlightLog } from './flight-log.util';
 import { FlightInput, normalizeFlight } from './flight.util';
 import { CompanyInput, normalizeCompany, normalizeProfileCode } from './settings.util';
 
@@ -152,7 +156,8 @@ export class WorkspaceService {
       );
       if (!worker.rows[0]) throw new NotFoundException('Worker not found');
       const assignments = await db.query(
-        `SELECT id, activity, starts_at::text AS starts_at, ends_at::text AS ends_at, notes
+        `SELECT id, activity, starts_at::text AS starts_at, ends_at::text AS ends_at, notes,
+                flight_code, origin, destination, aircraft_registration
          FROM crew.assignments WHERE worker_id = $1 AND deleted_at IS NULL ORDER BY starts_at`,
         [id],
       );
@@ -161,15 +166,101 @@ export class WorkspaceService {
          FROM crew.experience WHERE worker_id = $1 AND deleted_at IS NULL ORDER BY category`,
         [id],
       );
-      return { ...worker.rows[0], assignments: assignments.rows, experience: experience.rows };
+      const documents = await db.query(
+        `SELECT id, category, title, document_number, issuer, expires_on::text AS expires_on, status
+         FROM crew.worker_documents
+         WHERE worker_id = $1 AND deleted_at IS NULL
+         ORDER BY category, title`,
+        [id],
+      );
+      const files = await db.query(
+        `SELECT id, original_name, mime_type, created_at::text AS created_at
+         FROM storage.files
+         WHERE deleted_at IS NULL AND module = 'crew' AND entity_id = $1
+         ORDER BY created_at DESC`,
+        [id],
+      );
+      return {
+        ...worker.rows[0],
+        assignments: assignments.rows,
+        experience: experience.rows,
+        documents: documents.rows,
+        files: files.rows,
+      };
+    });
+  }
+
+  createCrewDocument(req: HaveRequest, workerId: string, body: CrewDocumentInput) {
+    const data = normalizeCrewDocument(body, true);
+    return this.read(req, 'crew', async (db) => {
+      const worker = await db.query(`SELECT id FROM crew.workers WHERE id = $1 AND deleted_at IS NULL`, [workerId]);
+      if (!worker.rows[0]) throw new NotFoundException('Worker not found');
+      const { rows } = await db.query(
+        `INSERT INTO crew.worker_documents (worker_id, category, title, document_number, issuer, expires_on, status)
+         VALUES ($1, $2, $3, $4, $5, $6::date, $7)
+         RETURNING id, category, title, document_number, issuer, expires_on::text AS expires_on, status`,
+        [
+          workerId,
+          data.category,
+          data.title,
+          data.documentNumber,
+          data.issuer,
+          data.expiresOn || null,
+          data.status,
+        ],
+      );
+      return rows[0];
+    });
+  }
+
+  updateCrewDocument(req: HaveRequest, documentId: string, body: CrewDocumentInput) {
+    const data = normalizeCrewDocument(body, false);
+    return this.read(req, 'crew', async (db) => {
+      const { rows } = await db.query(
+        `UPDATE crew.worker_documents SET
+           category = COALESCE($2, category),
+           title = COALESCE($3, title),
+           document_number = COALESCE($4, document_number),
+           issuer = COALESCE($5, issuer),
+           expires_on = CASE WHEN $6::boolean THEN $7::date ELSE expires_on END,
+           status = COALESCE($8, status)
+         WHERE id = $1 AND deleted_at IS NULL
+         RETURNING id, category, title, document_number, issuer, expires_on::text AS expires_on, status`,
+        [
+          documentId,
+          data.category || null,
+          data.title || null,
+          data.documentNumber,
+          data.issuer,
+          body.expiresOn !== undefined,
+          data.expiresOn || null,
+          data.status || null,
+        ],
+      );
+      if (!rows[0]) throw new NotFoundException('Document not found');
+      return rows[0];
+    });
+  }
+
+  softDeleteCrewDocument(req: HaveRequest, documentId: string) {
+    return this.read(req, 'crew', async (db) => {
+      const { rows } = await db.query(
+        `UPDATE crew.worker_documents SET deleted_at = now()
+         WHERE id = $1 AND deleted_at IS NULL
+         RETURNING id`,
+        [documentId],
+      );
+      if (!rows[0]) throw new NotFoundException('Document not found');
+      return { ok: true };
     });
   }
 
   crewAssignments(req: HaveRequest) {
     return this.read(req, 'crew', async (db) => {
       const { rows } = await db.query(
-        `SELECT a.id, a.worker_id, w.full_name, w.employee_code, a.activity,
-                a.starts_at::text AS starts_at, a.ends_at::text AS ends_at, a.notes
+        `SELECT a.id, a.worker_id, w.full_name, w.employee_code, w.position, a.activity,
+                a.starts_at::text AS starts_at, a.ends_at::text AS ends_at, a.notes,
+                a.flight_code, a.origin, a.destination, a.aircraft_registration
          FROM crew.assignments a
          JOIN crew.workers w ON w.id = a.worker_id AND w.deleted_at IS NULL
          WHERE a.deleted_at IS NULL
@@ -182,14 +273,9 @@ export class WorkspaceService {
   createCrewAssignment(
     req: HaveRequest,
     workerId: string,
-    body: { activity?: string; startsAt?: string; endsAt?: string; notes?: string },
+    body: CrewAssignmentInput,
   ) {
-    const activity = body.activity?.trim() ?? '';
-    const startsAt = body.startsAt?.trim() ?? '';
-    const endsAt = body.endsAt?.trim() ?? '';
-    if (!activity || !startsAt || !endsAt) {
-      throw new BadRequestException('Activity, start and end are required');
-    }
+    const data = normalizeCrewAssignment(body);
     return this.read(req, 'crew', async (db) => {
       const worker = await db.query(
         `SELECT id FROM crew.workers WHERE id = $1 AND deleted_at IS NULL`,
@@ -197,10 +283,24 @@ export class WorkspaceService {
       );
       if (!worker.rows[0]) throw new NotFoundException('Worker not found');
       const { rows } = await db.query(
-        `INSERT INTO crew.assignments (worker_id, activity, starts_at, ends_at, notes)
-         VALUES ($1, $2, $3::timestamptz, $4::timestamptz, $5)
-         RETURNING id, worker_id, activity, starts_at::text AS starts_at, ends_at::text AS ends_at, notes`,
-        [workerId, activity, startsAt, endsAt, body.notes?.trim() ?? ''],
+        `INSERT INTO crew.assignments (
+           worker_id, activity, starts_at, ends_at, notes,
+           flight_code, origin, destination, aircraft_registration
+         )
+         VALUES ($1, $2, $3::timestamptz, $4::timestamptz, $5, $6, $7, $8, $9)
+         RETURNING id, worker_id, activity, starts_at::text AS starts_at, ends_at::text AS ends_at, notes,
+                   flight_code, origin, destination, aircraft_registration`,
+        [
+          workerId,
+          data.activity,
+          data.startsAt,
+          data.endsAt,
+          data.notes,
+          data.flightCode,
+          data.origin,
+          data.destination,
+          data.aircraftRegistration,
+        ],
       );
       return rows[0];
     });
@@ -304,6 +404,11 @@ export class WorkspaceService {
       );
       await db.query(
         `UPDATE crew.experience SET deleted_at = now()
+         WHERE worker_id = $1 AND deleted_at IS NULL`,
+        [id],
+      );
+      await db.query(
+        `UPDATE crew.worker_documents SET deleted_at = now()
          WHERE worker_id = $1 AND deleted_at IS NULL`,
         [id],
       );
@@ -444,6 +549,12 @@ export class WorkspaceService {
            RETURNING id, code, flight_date::text AS flight_date, origin, destination, status, eobt`,
           [data.code, data.aircraftId, data.flightDate, data.origin, data.destination, data.status, data.eobt],
         );
+        const flightId = rows[0].id as string;
+        await db.query(
+          `INSERT INTO flights.flight_legs (flight_id, sequence, origin, destination)
+           VALUES ($1, 1, $2, $3)`,
+          [flightId, data.origin, data.destination],
+        );
         return rows[0];
       } catch (err) {
         throw mapPgUnique(err, 'Flight code already exists');
@@ -451,10 +562,19 @@ export class WorkspaceService {
     });
   }
 
+  private async assertFlight(db: PoolClient, id: string) {
+    const { rows } = await db.query(
+      `SELECT id FROM flights.flights WHERE id = $1 AND deleted_at IS NULL`,
+      [id],
+    );
+    if (!rows[0]) throw new NotFoundException('Flight not found');
+    return rows[0].id as string;
+  }
+
   flightDetail(req: HaveRequest, id: string) {
     return this.read(req, 'flights', async (db) => {
       const flight = await db.query(
-        `SELECT f.id, f.code, a.registration, a.model, f.flight_date::text AS flight_date, f.origin, f.destination, f.status, f.eobt
+        `SELECT f.id, f.code, f.aircraft_id, a.registration, a.model, f.flight_date::text AS flight_date, f.origin, f.destination, f.status, f.eobt
          FROM flights.flights f
          JOIN aircraft.aircraft a ON a.id = f.aircraft_id AND a.deleted_at IS NULL
          WHERE f.id = $1 AND f.deleted_at IS NULL`,
@@ -467,11 +587,183 @@ export class WorkspaceService {
         [id],
       );
       const log = await db.query(
-        `SELECT block_minutes, flight_minutes, cycles, pilot_name, review_status, notes
+        `SELECT id, block_minutes, flight_minutes, cycles, pilot_name, review_status, notes
          FROM flights.logs WHERE flight_id = $1 AND deleted_at IS NULL`,
         [id],
       );
-      return { flight: flight.rows[0], plan: plan.rows[0] ?? null, log: log.rows[0] ?? null };
+      const legs = await db.query(
+        `SELECT id, sequence, origin, destination, eet
+         FROM flights.flight_legs
+         WHERE flight_id = $1 AND deleted_at IS NULL
+         ORDER BY sequence`,
+        [id],
+      );
+      return {
+        ...flight.rows[0],
+        plan: plan.rows[0] ?? null,
+        log: log.rows[0] ?? null,
+        legs: legs.rows,
+      };
+    });
+  }
+
+  updateFlight(req: HaveRequest, id: string, body: FlightInput) {
+    const data = normalizeFlight(body, false);
+    return this.read(req, 'flights', async (db) => {
+      await this.assertFlight(db, id);
+      const fields: string[] = [];
+      const values: unknown[] = [];
+      let n = 1;
+      if (data.code) {
+        fields.push(`code = $${n++}`);
+        values.push(data.code);
+      }
+      if (data.aircraftId) {
+        fields.push(`aircraft_id = $${n++}`);
+        values.push(data.aircraftId);
+      }
+      if (data.flightDate) {
+        fields.push(`flight_date = $${n++}`);
+        values.push(data.flightDate);
+      }
+      if (data.origin) {
+        fields.push(`origin = $${n++}`);
+        values.push(data.origin);
+      }
+      if (data.destination) {
+        fields.push(`destination = $${n++}`);
+        values.push(data.destination);
+      }
+      if (body.status != null) {
+        fields.push(`status = $${n++}`);
+        values.push(data.status);
+      }
+      if (body.eobt != null) {
+        fields.push(`eobt = $${n++}`);
+        values.push(data.eobt);
+      }
+      if (!fields.length) throw new BadRequestException('No fields to update');
+      values.push(id);
+      try {
+        const { rows } = await db.query(
+          `UPDATE flights.flights SET ${fields.join(', ')}
+           WHERE id = $${n} AND deleted_at IS NULL
+           RETURNING id, code, flight_date::text AS flight_date, origin, destination, status, eobt`,
+          values,
+        );
+        return rows[0];
+      } catch (err) {
+        throw mapPgUnique(err, 'Flight code already exists');
+      }
+    });
+  }
+
+  upsertFlightLog(req: HaveRequest, flightId: string, body: FlightLogInput) {
+    const data = normalizeFlightLog(body, true);
+    return this.read(req, 'flights', async (db) => {
+      await this.assertFlight(db, flightId);
+      const { rows } = await db.query(
+        `INSERT INTO flights.logs (flight_id, block_minutes, flight_minutes, cycles, pilot_name, review_status, notes)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (flight_id) DO UPDATE SET
+           block_minutes = EXCLUDED.block_minutes,
+           flight_minutes = EXCLUDED.flight_minutes,
+           cycles = EXCLUDED.cycles,
+           pilot_name = EXCLUDED.pilot_name,
+           review_status = EXCLUDED.review_status,
+           notes = EXCLUDED.notes,
+           deleted_at = NULL
+         RETURNING id, block_minutes, flight_minutes, cycles, pilot_name, review_status, notes`,
+        [
+          flightId,
+          data.blockMinutes,
+          data.flightMinutes,
+          data.cycles,
+          data.pilotName,
+          data.reviewStatus,
+          data.notes,
+        ],
+      );
+      return rows[0];
+    });
+  }
+
+  createFlightLeg(req: HaveRequest, flightId: string, body: FlightLegInput) {
+    const data = normalizeFlightLeg(body, true);
+    return this.read(req, 'flights', async (db) => {
+      await this.assertFlight(db, flightId);
+      let sequence = data.sequence;
+      if (!sequence) {
+        const next = await db.query(
+          `SELECT COALESCE(MAX(sequence), 0) + 1 AS seq FROM flights.flight_legs
+           WHERE flight_id = $1 AND deleted_at IS NULL`,
+          [flightId],
+        );
+        sequence = Number(next.rows[0].seq);
+      }
+      try {
+        const { rows } = await db.query(
+          `INSERT INTO flights.flight_legs (flight_id, sequence, origin, destination, eet)
+           VALUES ($1, $2, $3, $4, $5)
+           RETURNING id, sequence, origin, destination, eet`,
+          [flightId, sequence, data.origin, data.destination, data.eet],
+        );
+        return rows[0];
+      } catch (err) {
+        throw mapPgUnique(err, 'Leg sequence already exists for this flight');
+      }
+    });
+  }
+
+  updateFlightLeg(req: HaveRequest, legId: string, body: FlightLegInput) {
+    const data = normalizeFlightLeg(body, false);
+    return this.read(req, 'flights', async (db) => {
+      const fields: string[] = [];
+      const values: unknown[] = [];
+      let n = 1;
+      if (data.origin) {
+        fields.push(`origin = $${n++}`);
+        values.push(data.origin);
+      }
+      if (data.destination) {
+        fields.push(`destination = $${n++}`);
+        values.push(data.destination);
+      }
+      if (body.eet !== undefined) {
+        fields.push(`eet = $${n++}`);
+        values.push(data.eet);
+      }
+      if (data.sequence) {
+        fields.push(`sequence = $${n++}`);
+        values.push(data.sequence);
+      }
+      if (!fields.length) throw new BadRequestException('No fields to update');
+      values.push(legId);
+      try {
+        const { rows } = await db.query(
+          `UPDATE flights.flight_legs SET ${fields.join(', ')}
+           WHERE id = $${n} AND deleted_at IS NULL
+           RETURNING id, sequence, origin, destination, eet`,
+          values,
+        );
+        if (!rows[0]) throw new NotFoundException('Leg not found');
+        return rows[0];
+      } catch (err) {
+        throw mapPgUnique(err, 'Leg sequence already exists for this flight');
+      }
+    });
+  }
+
+  softDeleteFlightLeg(req: HaveRequest, legId: string) {
+    return this.read(req, 'flights', async (db) => {
+      const { rows } = await db.query(
+        `UPDATE flights.flight_legs SET deleted_at = now()
+         WHERE id = $1 AND deleted_at IS NULL
+         RETURNING id`,
+        [legId],
+      );
+      if (!rows[0]) throw new NotFoundException('Leg not found');
+      return { ok: true };
     });
   }
 

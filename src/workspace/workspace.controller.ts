@@ -48,11 +48,60 @@ export class WorkspaceController {
     return this.workspace.softDeleteCrew(req, id);
   }
 
+  @Post('crew/:id/documents')
+  createCrewDocument(
+    @Req() req: HaveRequest,
+    @Param('id') id: string,
+    @Body()
+    body: {
+      category?: string;
+      title?: string;
+      documentNumber?: string;
+      issuer?: string;
+      expiresOn?: string;
+      status?: string;
+    },
+  ) {
+    return this.workspace.createCrewDocument(req, id, body);
+  }
+
+  @Put('crew/documents/:documentId')
+  updateCrewDocument(
+    @Req() req: HaveRequest,
+    @Param('documentId') documentId: string,
+    @Body()
+    body: {
+      category?: string;
+      title?: string;
+      documentNumber?: string;
+      issuer?: string;
+      expiresOn?: string;
+      status?: string;
+    },
+  ) {
+    return this.workspace.updateCrewDocument(req, documentId, body);
+  }
+
+  @Delete('crew/documents/:documentId')
+  softDeleteCrewDocument(@Req() req: HaveRequest, @Param('documentId') documentId: string) {
+    return this.workspace.softDeleteCrewDocument(req, documentId);
+  }
+
   @Post('crew/:id/assignments')
   createCrewAssignment(
     @Req() req: HaveRequest,
     @Param('id') id: string,
-    @Body() body: { activity?: string; startsAt?: string; endsAt?: string; notes?: string },
+    @Body()
+    body: {
+      activity?: string;
+      startsAt?: string;
+      endsAt?: string;
+      notes?: string;
+      flightCode?: string;
+      origin?: string;
+      destination?: string;
+      aircraftRegistration?: string;
+    },
   ) {
     return this.workspace.createCrewAssignment(req, id, body);
   }
@@ -115,6 +164,64 @@ export class WorkspaceController {
   @Get('flights/:id')
   flightDetail(@Req() req: HaveRequest, @Param('id') id: string) {
     return this.workspace.flightDetail(req, id);
+  }
+
+  @Put('flights/:id')
+  updateFlight(
+    @Req() req: HaveRequest,
+    @Param('id') id: string,
+    @Body()
+    body: {
+      code?: string;
+      aircraftId?: string;
+      flightDate?: string;
+      origin?: string;
+      destination?: string;
+      status?: string;
+      eobt?: string;
+    },
+  ) {
+    return this.workspace.updateFlight(req, id, body);
+  }
+
+  @Put('flights/:id/log')
+  upsertFlightLog(
+    @Req() req: HaveRequest,
+    @Param('id') id: string,
+    @Body()
+    body: {
+      blockMinutes?: number;
+      flightMinutes?: number;
+      cycles?: number;
+      pilotName?: string;
+      reviewStatus?: string;
+      notes?: string;
+    },
+  ) {
+    return this.workspace.upsertFlightLog(req, id, body);
+  }
+
+  @Post('flights/:id/legs')
+  createFlightLeg(
+    @Req() req: HaveRequest,
+    @Param('id') id: string,
+    @Body() body: { origin?: string; destination?: string; sequence?: number; eet?: string },
+  ) {
+    return this.workspace.createFlightLeg(req, id, body);
+  }
+
+  @Put('flights/legs/:legId')
+  updateFlightLeg(
+    @Req() req: HaveRequest,
+    @Param('legId') legId: string,
+    @Body() body: { origin?: string; destination?: string; sequence?: number; eet?: string },
+  ) {
+    return this.workspace.updateFlightLeg(req, legId, body);
+  }
+
+  @Delete('flights/legs/:legId')
+  softDeleteFlightLeg(@Req() req: HaveRequest, @Param('legId') legId: string) {
+    return this.workspace.softDeleteFlightLeg(req, legId);
   }
 
   @Get('operations/services')

@@ -1,6 +1,8 @@
 # Checklist Iteración 1A (Base)
 
-Referencia: [04-apis-e-iteraciones.md](../../havectrl-backend/docs/producto/04-apis-e-iteraciones.md).
+Referencia: [04-apis-e-iteraciones.md](../producto/04-apis-e-iteraciones.md).
+
+Checklist de cierre del MVP completo (1A+1B+1C): [iteracion-1-cierre.md](./iteracion-1-cierre.md).
 
 ## Estado por bloque
 
@@ -10,8 +12,9 @@ Referencia: [04-apis-e-iteraciones.md](../../havectrl-backend/docs/producto/04-a
 | Roles / módulos | Matriz en `access.ts`; Home oculta contadores sin permiso | Hecho |
 | SMS reservado | Bandeja y conteo Home solo `admin` / `jefe_sms` | Hecho |
 | Crew Data | CRUD + soft delete + detalle plano | Hecho |
-| Crew Schedule | Listado global + alta/baja manual de assignments | Hecho (esta entrega) |
-| Crew Experience | Lectura desde seed / LOG futuro | Parcial (lectura demo) |
+| Crew Schedule | Listado global + alta/baja manual de assignments | Hecho |
+| Crew Experience | Lectura desde seed / LOG futuro | Hecho (demo 1A; LOG en 1B) |
+| Crew documentos | Secciones Vol. 02 + adjuntos | Hecho (`007`, `/files` crew) |
 | Aircraft | Ficha, documentos CRUD, discrepancias, historial | Hecho (documentos CRUD en esta entrega) |
 | Settings | Compañía editable + usuarios + cambio de rol (perfil) | Hecho (esta entrega) |
 | Archivos / respaldo | Almacén local + API + script backup + docs | Hecho (esta entrega) |
