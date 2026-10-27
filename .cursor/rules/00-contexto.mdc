@@ -1,0 +1,12 @@
+---
+description: Contexto corto del backend HaveCtrl. La ley está en AGENTS.md y docs/.
+alwaysApply: true
+---
+
+# Contexto
+
+Lee `AGENTS.md`. Reglas de review: `docs/REGLAS_DE_ORO.md`. Detalle: `docs/reglas/00-principios.md`.
+
+Producto y dudas abiertas: `docs/producto/`. No cierres una duda que ese directorio deja abierta.
+
+Un proceso sirve a todos los clientes. El tenant sale del hostname, no del cuerpo.

@@ -1,0 +1,13 @@
+---
+description: Hostname de havectrl_central y JWT del mismo tenant.
+globs: src/tenancy/**/*.ts,src/auth/**/*.ts
+alwaysApply: false
+---
+
+# Tenancy
+
+Detalle: `docs/reglas/04-tenancy.md`.
+
+- Orden: `Origin`, `Referer`, `X-Forwarded-Host`, `Host`.
+- Sin hostname en la central, no hay tenant. El cuerpo no elige la compañía.
+- `tenantId` del JWT tiene que coincidir con el slug resuelto.

@@ -1,0 +1,13 @@
+---
+description: La documentación de reglas vive en docs/, no se copia a otras capas.
+globs: docs/**/*.md,AGENTS.md,CLAUDE.md
+alwaysApply: false
+---
+
+# Documentación
+
+Detalle: `docs/reglas/07-documentacion.md`.
+
+- Producto en `docs/producto/`. Reglas de agente en `docs/reglas/`.
+- No copies el texto largo a `AGENTS.md` ni a un `.mdc`.
+- `CLAUDE.md` solo importa `AGENTS.md`.

@@ -1,0 +1,13 @@
+---
+description: Migraciones aditivas y secretos de conexión fuera del repo.
+globs: migrations/**/*.sql,src/db/**/*.ts,scripts/**/*.mjs
+alwaysApply: false
+---
+
+# Base de datos
+
+Detalle: `docs/reglas/05-base-de-datos.md`.
+
+- SQL nuevo en `migrations/central` o `migrations/tenant`. No reescribas una migración aplicada.
+- No interpoles un nombre de base sin validarlo.
+- No pongas contraseñas en el SQL ni en `src/db/`.
