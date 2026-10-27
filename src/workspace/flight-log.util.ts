@@ -1,5 +1,11 @@
 import { BadRequestException } from '@nestjs/common';
 
+export type FlightLogCrewInput = {
+  workerId?: string;
+  functionCode?: string;
+  countsAsFlight?: boolean;
+};
+
 export type FlightLogInput = {
   blockMinutes?: number;
   flightMinutes?: number;
@@ -7,6 +13,7 @@ export type FlightLogInput = {
   pilotName?: string;
   reviewStatus?: string;
   notes?: string;
+  crew?: FlightLogCrewInput[];
 };
 
 export function normalizeFlightLog(body: FlightLogInput, requireAll: boolean) {
@@ -45,5 +52,6 @@ export function normalizeFlightLog(body: FlightLogInput, requireAll: boolean) {
     pilotName: pilotName ?? '',
     reviewStatus,
     notes,
+    crew: Array.isArray(body.crew) ? body.crew : [],
   };
 }

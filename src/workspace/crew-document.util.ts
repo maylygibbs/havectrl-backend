@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 
-const CATEGORIES = new Set(['language', 'travel', 'training', 'other']);
+const CATEGORIES = new Set(['language', 'travel', 'training', 'other', 'license', 'instructor', 'medical', 'uniform']);
 
 export type CrewDocumentInput = {
   category?: string;
@@ -8,7 +8,9 @@ export type CrewDocumentInput = {
   documentNumber?: string;
   issuer?: string;
   expiresOn?: string;
+  effectiveOn?: string;
   status?: string;
+  privateNote?: string;
 };
 
 export function normalizeCrewDocument(body: CrewDocumentInput, requireAll: boolean) {
@@ -17,7 +19,9 @@ export function normalizeCrewDocument(body: CrewDocumentInput, requireAll: boole
   const documentNumber = body.documentNumber?.trim() || null;
   const issuer = body.issuer?.trim() || null;
   const expiresOn = body.expiresOn?.trim() || null;
+  const effectiveOn = body.effectiveOn?.trim() || null;
   const status = body.status?.trim() || 'current';
+  const privateNote = body.privateNote?.trim() || null;
 
   if (requireAll && (!category || !title)) {
     throw new BadRequestException('category and title are required');
@@ -26,5 +30,5 @@ export function normalizeCrewDocument(body: CrewDocumentInput, requireAll: boole
     throw new BadRequestException('category must be language, travel, training, or other');
   }
 
-  return { category: category ?? '', title: title ?? '', documentNumber, issuer, expiresOn, status };
+  return { category: category ?? '', title: title ?? '', documentNumber, issuer, expiresOn, effectiveOn, status, privateNote };
 }

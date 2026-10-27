@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Req, Res, UseGuards } from '@nestjs/common';
+import { FastifyReply } from 'fastify';
 import { AuthGuard } from '../auth/auth.guard';
 import { HaveRequest } from '../tenancy/tenant.middleware';
 import { CrewInput, WorkspaceService } from './workspace.service';
@@ -21,6 +22,11 @@ export class WorkspaceController {
   @Get('crew/assignments')
   crewAssignments(@Req() req: HaveRequest) {
     return this.workspace.crewAssignments(req);
+  }
+
+  @Get('crew/assignable-flights')
+  assignableFlights(@Req() req: HaveRequest) {
+    return this.workspace.assignableFlights(req);
   }
 
   @Delete('crew/assignments/:assignmentId')
@@ -46,6 +52,60 @@ export class WorkspaceController {
   @Delete('crew/:id')
   softDeleteCrew(@Req() req: HaveRequest, @Param('id') id: string) {
     return this.workspace.softDeleteCrew(req, id);
+  }
+
+  @Post('crew/documents/:documentId/review')
+  reviewCrewDocument(
+    @Req() req: HaveRequest,
+    @Param('documentId') documentId: string,
+    @Body() body: { decision?: string; note?: string },
+  ) {
+    return this.workspace.reviewCrewDocument(req, documentId, body);
+  }
+
+  @Post('crew/assignments/:assignmentId/publish')
+  publishAssignment(@Req() req: HaveRequest, @Param('assignmentId') assignmentId: string) {
+    return this.workspace.publishAssignment(req, assignmentId);
+  }
+
+  @Post('crew/assignments/:assignmentId/change-requests')
+  requestAssignmentChange(
+    @Req() req: HaveRequest,
+    @Param('assignmentId') assignmentId: string,
+    @Body() body: { reason?: string; activity?: string; startsAt?: string; endsAt?: string },
+  ) {
+    return this.workspace.requestAssignmentChange(req, assignmentId, body);
+  }
+
+  @Post('crew/change-requests/:requestId/review')
+  reviewChangeRequest(
+    @Req() req: HaveRequest,
+    @Param('requestId') requestId: string,
+    @Body() body: { decision?: string; note?: string },
+  ) {
+    return this.workspace.reviewChangeRequest(req, requestId, body);
+  }
+
+  @Post('crew/:id/previous-experience')
+  addPreviousExperience(
+    @Req() req: HaveRequest,
+    @Param('id') id: string,
+    @Body() body: { origin?: string; flightMinutes?: number; asOf?: string; functionCode?: string; registration?: string; note?: string },
+  ) {
+    return this.workspace.addPreviousExperience(req, id, body);
+  }
+
+  @Get('crew/:id/export/:kind')
+  async exportCrew(
+    @Req() req: HaveRequest,
+    @Param('id') id: string,
+    @Param('kind') kind: string,
+    @Res() reply: FastifyReply,
+  ) {
+    const bytes = await this.workspace.crewPdf(req, id, kind);
+    reply.header('Content-Type', 'application/pdf');
+    reply.header('Content-Disposition', `attachment; filename="crew-${kind}.pdf"`);
+    return reply.send(bytes);
   }
 
   @Post('crew/:id/documents')

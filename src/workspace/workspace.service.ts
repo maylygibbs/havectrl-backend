@@ -1,11 +1,19 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import { assertModule, modulesFor, profileOf } from '../access';
 import { homeOpenSmsCount, smsInboxRowsAllowed } from '../home-metrics';
 import { ConfigRegistry } from '../tenancy/config-registry';
 import { HaveRequest } from '../tenancy/tenant.middleware';
 import { AircraftDocumentInput, normalizeAircraftDocument } from './aircraft-document.util';
-import { CrewAssignmentInput, normalizeCrewAssignment } from './crew-assignment.util';
+import { assertAssignmentAllowed, CrewAssignmentInput, normalizeCrewAssignment } from './crew-assignment.util';
+import {
+  bindVisibility,
+  crewVisibility,
+  documentValidity,
+  experienceReport,
+  logMovementMinutes,
+  simplePdf,
+} from './crew-scope.util';
 import { CrewDocumentInput, normalizeCrewDocument } from './crew-document.util';
 import { CrewInput, mapPgUnique, normalizeCrew } from './crew.util';
 import { FlightLegInput, normalizeFlightLeg } from './flight-leg.util';
@@ -18,6 +26,11 @@ export type { CrewInput };
 @Injectable()
 export class WorkspaceService {
   constructor(private readonly registry: ConfigRegistry) {}
+
+  private visibility(req: HaveRequest, startAt: number) {
+    const scope = crewVisibility(req.user?.profile, req.user?.sub);
+    return bindVisibility(scope.clause, scope.params, startAt);
+  }
 
   private async read<T>(req: HaveRequest, module: string, fn: (db: PoolClient) => Promise<T>) {
     assertModule(req, module);
@@ -137,28 +150,49 @@ export class WorkspaceService {
   }
 
   crew(req: HaveRequest) {
+    const visible = this.visibility(req, 1);
     return this.read(req, 'crew', async (db) => {
       const { rows } = await db.query(
-        `SELECT id, employee_code, full_name, position, base, status, license_expires::text AS license_expires
-         FROM crew.workers WHERE deleted_at IS NULL ORDER BY full_name`,
+        `SELECT w.id, w.employee_code, w.full_name, w.position, w.base, w.team, w.status,
+                w.license_expires::text AS license_expires,
+                w.medical_expires::text AS medical_expires
+         FROM crew.workers w
+         WHERE w.deleted_at IS NULL AND ${visible.sql}
+         ORDER BY w.full_name`,
+        visible.params,
       );
-      return rows;
+      return rows.map((row) => ({
+        ...row,
+        medical_fit: row.medical_expires ? String(row.medical_expires) >= new Date().toISOString().slice(0, 10) : null,
+      }));
     });
   }
 
   crewDetail(req: HaveRequest, id: string) {
+    const visible = this.visibility(req, 2);
     return this.read(req, 'crew', async (db) => {
       const worker = await db.query(
-        `SELECT id, employee_code, full_name, position, base, status,
-                license_number, license_expires::text AS license_expires, medical_expires::text AS medical_expires
-         FROM crew.workers WHERE id = $1 AND deleted_at IS NULL`,
-        [id],
+        `SELECT w.id, w.employee_code, w.full_name, w.position, w.base, w.team, w.email, w.status,
+                w.license_number, w.license_expires::text AS license_expires,
+                w.medical_expires::text AS medical_expires,
+                w.uniform_shirt, w.uniform_pants, w.uniform_shoes
+         FROM crew.workers w
+         WHERE w.id = $1 AND w.deleted_at IS NULL AND ${visible.sql}`,
+        [id, ...visible.params],
       );
       if (!worker.rows[0]) throw new NotFoundException('Worker not found');
       const assignments = await db.query(
         `SELECT id, activity, starts_at::text AS starts_at, ends_at::text AS ends_at, notes,
-                flight_code, origin, destination, aircraft_registration
+                flight_code, origin, destination, aircraft_registration, publication_status
          FROM crew.assignments WHERE worker_id = $1 AND deleted_at IS NULL ORDER BY starts_at`,
+        [id],
+      );
+      const changes = await db.query(
+        `SELECT id, assignment_id, proposed_activity, proposed_starts_at::text AS proposed_starts_at,
+                proposed_ends_at::text AS proposed_ends_at, reason, status, review_note
+         FROM crew.change_requests
+         WHERE worker_id = $1 AND deleted_at IS NULL
+         ORDER BY id`,
         [id],
       );
       const experience = await db.query(
@@ -167,10 +201,25 @@ export class WorkspaceService {
         [id],
       );
       const documents = await db.query(
-        `SELECT id, category, title, document_number, issuer, expires_on::text AS expires_on, status
+        `SELECT id, category, title, document_number, issuer, expires_on::text AS expires_on,
+                effective_on::text AS effective_on, status, review_status, review_note, private_note
          FROM crew.worker_documents
          WHERE worker_id = $1 AND deleted_at IS NULL
          ORDER BY category, title`,
+        [id],
+      );
+      const movements = await db.query(
+        `SELECT flight_minutes, block_minutes, credited_minutes, night_minutes, instrument_minutes,
+                simulator_minutes, occurred_on::text AS occurred_on, counts_as_flight, registration, function_code
+         FROM crew.experience_movements
+         WHERE worker_id = $1 AND deleted_at IS NULL`,
+        [id],
+      );
+      const previous = await db.query(
+        `SELECT id, origin, function_code, registration, flight_minutes, as_of::text AS as_of, review_status, note
+         FROM crew.previous_experience
+         WHERE worker_id = $1 AND deleted_at IS NULL
+         ORDER BY origin`,
         [id],
       );
       const files = await db.query(
@@ -180,11 +229,52 @@ export class WorkspaceService {
          ORDER BY created_at DESC`,
         [id],
       );
+      const today = new Date().toISOString().slice(0, 10);
+      const ownFile = req.user?.profile === 'admin' || req.user?.sub === worker.rows[0].email;
+      const docs = documents.rows.map((row) => {
+        const validity = documentValidity({
+          reviewStatus: String(row.review_status ?? 'accepted'),
+          expiresOn: row.expires_on as string | null,
+          effectiveOn: row.effective_on as string | null,
+          today,
+        });
+        return {
+          ...row,
+          validity,
+          private_note: ownFile ? row.private_note : null,
+        };
+      });
+      const report = experienceReport({
+        today,
+        movements: movements.rows.map((row) => ({
+          flightMinutes: Number(row.flight_minutes),
+          blockMinutes: Number(row.block_minutes),
+          creditedMinutes: Number(row.credited_minutes),
+          nightMinutes: Number(row.night_minutes),
+          instrumentMinutes: Number(row.instrument_minutes),
+          simulatorMinutes: Number(row.simulator_minutes),
+          occurredOn: row.occurred_on as string | null,
+          countsAsFlight: Boolean(row.counts_as_flight),
+          registration: row.registration as string | null,
+          functionCode: row.function_code as string | null,
+        })),
+        previous: previous.rows.map((row) => ({
+          flightMinutes: Number(row.flight_minutes),
+          asOf: row.as_of as string | null,
+          reviewStatus: String(row.review_status),
+        })),
+      });
       return {
         ...worker.rows[0],
+        medical_fit: worker.rows[0].medical_expires
+          ? String(worker.rows[0].medical_expires) >= today
+          : null,
         assignments: assignments.rows,
+        changeRequests: changes.rows,
         experience: experience.rows,
-        documents: documents.rows,
+        experienceReport: report,
+        previousExperience: previous.rows,
+        documents: docs,
         files: files.rows,
       };
     });
@@ -195,10 +285,14 @@ export class WorkspaceService {
     return this.read(req, 'crew', async (db) => {
       const worker = await db.query(`SELECT id FROM crew.workers WHERE id = $1 AND deleted_at IS NULL`, [workerId]);
       if (!worker.rows[0]) throw new NotFoundException('Worker not found');
+      const reviewStatus = req.user?.profile === 'admin' ? 'accepted' : 'pending_review';
       const { rows } = await db.query(
-        `INSERT INTO crew.worker_documents (worker_id, category, title, document_number, issuer, expires_on, status)
-         VALUES ($1, $2, $3, $4, $5, $6::date, $7)
-         RETURNING id, category, title, document_number, issuer, expires_on::text AS expires_on, status`,
+        `INSERT INTO crew.worker_documents (
+           worker_id, category, title, document_number, issuer, expires_on, effective_on, status, review_status, private_note
+         )
+         VALUES ($1, $2, $3, $4, $5, $6::date, $7::date, $8, $9, $10)
+         RETURNING id, category, title, document_number, issuer, expires_on::text AS expires_on,
+                   effective_on::text AS effective_on, status, review_status`,
         [
           workerId,
           data.category,
@@ -206,7 +300,10 @@ export class WorkspaceService {
           data.documentNumber,
           data.issuer,
           data.expiresOn || null,
+          data.effectiveOn || null,
           data.status,
+          reviewStatus,
+          data.category === 'medical' ? data.privateNote : null,
         ],
       );
       return rows[0];
@@ -223,6 +320,8 @@ export class WorkspaceService {
            document_number = COALESCE($4, document_number),
            issuer = COALESCE($5, issuer),
            expires_on = CASE WHEN $6::boolean THEN $7::date ELSE expires_on END,
+           effective_on = CASE WHEN $9::boolean THEN $10::date ELSE effective_on END,
+           private_note = CASE WHEN $11::boolean THEN $12 ELSE private_note END,
            status = COALESCE($8, status)
          WHERE id = $1 AND deleted_at IS NULL
          RETURNING id, category, title, document_number, issuer, expires_on::text AS expires_on, status`,
@@ -235,6 +334,10 @@ export class WorkspaceService {
           body.expiresOn !== undefined,
           data.expiresOn || null,
           data.status || null,
+          body.effectiveOn !== undefined,
+          data.effectiveOn || null,
+          body.privateNote !== undefined,
+          data.category === 'medical' ? data.privateNote : null,
         ],
       );
       if (!rows[0]) throw new NotFoundException('Document not found');
@@ -256,15 +359,30 @@ export class WorkspaceService {
   }
 
   crewAssignments(req: HaveRequest) {
+    const visible = this.visibility(req, 1);
     return this.read(req, 'crew', async (db) => {
       const { rows } = await db.query(
         `SELECT a.id, a.worker_id, w.full_name, w.employee_code, w.position, a.activity,
                 a.starts_at::text AS starts_at, a.ends_at::text AS ends_at, a.notes,
-                a.flight_code, a.origin, a.destination, a.aircraft_registration
+                a.flight_code, a.origin, a.destination, a.aircraft_registration, a.publication_status
          FROM crew.assignments a
          JOIN crew.workers w ON w.id = a.worker_id AND w.deleted_at IS NULL
-         WHERE a.deleted_at IS NULL
+         WHERE a.deleted_at IS NULL AND ${visible.sql}
          ORDER BY a.starts_at, w.full_name`,
+        visible.params,
+      );
+      return rows;
+    });
+  }
+
+  assignableFlights(req: HaveRequest) {
+    return this.read(req, 'crew', async (db) => {
+      const { rows } = await db.query(
+        `SELECT f.code, f.origin, f.destination, a.registration, f.flight_date::text AS flight_date
+         FROM flights.flights f
+         JOIN aircraft.aircraft a ON a.id = f.aircraft_id AND a.deleted_at IS NULL
+         WHERE f.deleted_at IS NULL
+         ORDER BY f.flight_date DESC, f.code`,
       );
       return rows;
     });
@@ -276,20 +394,52 @@ export class WorkspaceService {
     body: CrewAssignmentInput,
   ) {
     const data = normalizeCrewAssignment(body);
+    const visible = this.visibility(req, 2);
     return this.read(req, 'crew', async (db) => {
       const worker = await db.query(
-        `SELECT id FROM crew.workers WHERE id = $1 AND deleted_at IS NULL`,
-        [workerId],
+        `SELECT w.id, w.license_expires::text AS license_expires
+         FROM crew.workers w WHERE w.id = $1 AND w.deleted_at IS NULL AND ${visible.sql}`,
+        [workerId, ...visible.params],
       );
       if (!worker.rows[0]) throw new NotFoundException('Worker not found');
+      const flights = await db.query(
+        `SELECT f.code, f.origin, f.destination, a.registration
+         FROM flights.flights f
+         JOIN aircraft.aircraft a ON a.id = f.aircraft_id AND a.deleted_at IS NULL
+         WHERE f.deleted_at IS NULL`,
+      );
+      const known = flights.rows as { code: string; origin: string; destination: string; registration: string }[];
+      const existing = await db.query(
+        `SELECT activity, starts_at::text AS starts_at, ends_at::text AS ends_at
+         FROM crew.assignments
+         WHERE worker_id = $1 AND deleted_at IS NULL`,
+        [workerId],
+      );
+      assertAssignmentAllowed({
+        activity: data.activity,
+        startsAt: data.startsAt,
+        endsAt: data.endsAt,
+        licenseExpires: (worker.rows[0].license_expires as string | null) ?? null,
+        flightCode: data.flightCode,
+        knownFlightCodes: known.map((row) => row.code),
+        existing: existing.rows.map((row) => ({
+          activity: String(row.activity),
+          startsAt: String(row.starts_at),
+          endsAt: String(row.ends_at),
+        })),
+      });
+      const matched = known.find((row) => row.code === data.flightCode);
+      const origin = matched?.origin ?? data.origin;
+      const destination = matched?.destination ?? data.destination;
+      const aircraftRegistration = matched?.registration ?? data.aircraftRegistration;
       const { rows } = await db.query(
         `INSERT INTO crew.assignments (
            worker_id, activity, starts_at, ends_at, notes,
-           flight_code, origin, destination, aircraft_registration
+           flight_code, origin, destination, aircraft_registration, publication_status
          )
-         VALUES ($1, $2, $3::timestamptz, $4::timestamptz, $5, $6, $7, $8, $9)
+         VALUES ($1, $2, $3::timestamptz, $4::timestamptz, $5, $6, $7, $8, $9, 'draft')
          RETURNING id, worker_id, activity, starts_at::text AS starts_at, ends_at::text AS ends_at, notes,
-                   flight_code, origin, destination, aircraft_registration`,
+                   flight_code, origin, destination, aircraft_registration, publication_status`,
         [
           workerId,
           data.activity,
@@ -297,9 +447,9 @@ export class WorkspaceService {
           data.endsAt,
           data.notes,
           data.flightCode,
-          data.origin,
-          data.destination,
-          data.aircraftRegistration,
+          origin,
+          destination,
+          aircraftRegistration,
         ],
       );
       return rows[0];
@@ -684,8 +834,89 @@ export class WorkspaceService {
           data.notes,
         ],
       );
+      await this.syncLogExperience(db, flightId, data);
       return rows[0];
     });
+  }
+
+  private async syncLogExperience(
+    db: PoolClient,
+    flightId: string,
+    data: ReturnType<typeof normalizeFlightLog>,
+  ) {
+    await db.query(`UPDATE flights.log_crew SET deleted_at = now() WHERE flight_id = $1 AND deleted_at IS NULL`, [flightId]);
+    const confirmed = data.reviewStatus === 'confirmed' || data.reviewStatus === 'reviewed';
+    const flight = await db.query(
+      `SELECT f.flight_date::text AS flight_date, a.registration
+       FROM flights.flights f
+       JOIN aircraft.aircraft a ON a.id = f.aircraft_id
+       WHERE f.id = $1`,
+      [flightId],
+    );
+    const occurredOn = flight.rows[0]?.flight_date ?? new Date().toISOString().slice(0, 10);
+    const registration = flight.rows[0]?.registration ?? null;
+    const crew = [...data.crew];
+    if (!crew.length && data.pilotName) {
+      const named = await db.query(
+        `SELECT id FROM crew.workers WHERE lower(full_name) = lower($1) AND deleted_at IS NULL`,
+        [data.pilotName],
+      );
+      if (named.rows[0]) crew.push({ workerId: String(named.rows[0].id), functionCode: 'PIC', countsAsFlight: true });
+    }
+    for (const member of crew) {
+      if (!member.workerId) continue;
+      const functionCode = member.functionCode?.trim() || 'PIC';
+      const countsAsFlight = member.countsAsFlight !== false && functionCode.toUpperCase() !== 'PAX';
+      await db.query(
+        `INSERT INTO flights.log_crew (flight_id, worker_id, function_code, counts_as_flight)
+         VALUES ($1, $2, $3, $4)`,
+        [flightId, member.workerId, functionCode, countsAsFlight && functionCode.toUpperCase() !== 'SIM'],
+      );
+      const minutes = logMovementMinutes({
+        flightMinutes: data.flightMinutes,
+        blockMinutes: data.blockMinutes,
+        functionCode,
+        countsAsFlight,
+      });
+      if (!confirmed) {
+        await db.query(
+          `UPDATE crew.experience_movements SET deleted_at = now()
+           WHERE worker_id = $1 AND source = 'daily_log' AND source_key = $2 AND deleted_at IS NULL`,
+          [member.workerId, flightId],
+        );
+        continue;
+      }
+      await db.query(
+        `INSERT INTO crew.experience_movements (
+           worker_id, source, source_key, registration, function_code,
+           flight_minutes, block_minutes, credited_minutes, simulator_minutes,
+           occurred_on, counts_as_flight
+         )
+         VALUES ($1, 'daily_log', $2, $3, $4, $5, $6, $7, $8, $9::date, $10)
+         ON CONFLICT (worker_id, source, source_key) DO UPDATE SET
+           registration = EXCLUDED.registration,
+           function_code = EXCLUDED.function_code,
+           flight_minutes = EXCLUDED.flight_minutes,
+           block_minutes = EXCLUDED.block_minutes,
+           credited_minutes = EXCLUDED.credited_minutes,
+           simulator_minutes = EXCLUDED.simulator_minutes,
+           occurred_on = EXCLUDED.occurred_on,
+           counts_as_flight = EXCLUDED.counts_as_flight,
+           deleted_at = NULL`,
+        [
+          member.workerId,
+          flightId,
+          registration,
+          functionCode,
+          minutes.flightMinutes,
+          minutes.blockMinutes,
+          minutes.creditedMinutes,
+          minutes.simulatorMinutes,
+          occurredOn,
+          minutes.countsAsFlight,
+        ],
+      );
+    }
   }
 
   createFlightLeg(req: HaveRequest, flightId: string, body: FlightLegInput) {
@@ -974,6 +1205,225 @@ export class WorkspaceService {
       );
       return rows;
     });
+  }
+
+  private canPublish(req: HaveRequest) {
+    return req.user?.profile === 'admin' || req.user?.profile === 'despachador' || req.user?.profile === 'tecnico';
+  }
+
+  reviewCrewDocument(req: HaveRequest, documentId: string, body: { decision?: string; note?: string }) {
+    if (req.user?.profile !== 'admin') throw new ForbiddenException('Only an administrator reviews documents');
+    const decision = body.decision === 'reject' ? 'rejected' : 'accepted';
+    return this.read(req, 'crew', async (db) => {
+      const current = await db.query(
+        `SELECT id, worker_id, category, effective_on::text AS effective_on
+         FROM crew.worker_documents WHERE id = $1 AND deleted_at IS NULL`,
+        [documentId],
+      );
+      if (!current.rows[0]) throw new NotFoundException('Document not found');
+      const today = new Date().toISOString().slice(0, 10);
+      const effective = current.rows[0].effective_on as string | null;
+      let supersedes: string | null = null;
+      if (decision === 'accepted' && (!effective || effective <= today)) {
+        const previous = await db.query(
+          `SELECT id FROM crew.worker_documents
+           WHERE worker_id = $1 AND category = $2 AND id <> $3 AND deleted_at IS NULL
+             AND review_status = 'accepted'
+             AND (effective_on IS NULL OR effective_on <= CURRENT_DATE)
+           ORDER BY expires_on DESC NULLS LAST
+           LIMIT 1`,
+          [current.rows[0].worker_id, current.rows[0].category, documentId],
+        );
+        supersedes = (previous.rows[0]?.id as string | undefined) ?? null;
+        if (supersedes) {
+          await db.query(`UPDATE crew.worker_documents SET review_status = 'superseded' WHERE id = $1`, [supersedes]);
+        }
+      }
+      const { rows } = await db.query(
+        `UPDATE crew.worker_documents
+         SET review_status = $2, review_note = $3, supersedes_id = $4
+         WHERE id = $1
+         RETURNING id, review_status, review_note`,
+        [documentId, decision, body.note?.trim() || null, supersedes],
+      );
+      return rows[0];
+    });
+  }
+
+  publishAssignment(req: HaveRequest, assignmentId: string) {
+    if (!this.canPublish(req)) throw new ForbiddenException('This profile cannot publish the roster');
+    const visible = this.visibility(req, 2);
+    return this.read(req, 'crew', async (db) => {
+      const current = await db.query(
+        `SELECT a.id, a.publication_status
+         FROM crew.assignments a
+         JOIN crew.workers w ON w.id = a.worker_id
+         WHERE a.id = $1 AND a.deleted_at IS NULL AND ${visible.sql}`,
+        [assignmentId, ...visible.params],
+      );
+      if (!current.rows[0]) throw new NotFoundException('Assignment not found');
+      const change = await db.query(
+        `SELECT id, proposed_activity, proposed_starts_at, proposed_ends_at
+         FROM crew.change_requests
+         WHERE assignment_id = $1 AND status = 'approved' AND applied_at IS NULL AND deleted_at IS NULL
+         ORDER BY id DESC LIMIT 1`,
+        [assignmentId],
+      );
+      const nextStatus = current.rows[0].publication_status === 'published' || change.rows[0] ? 'amended' : 'published';
+      if (change.rows[0]) {
+        await db.query(
+          `UPDATE crew.assignments SET
+             activity = COALESCE($2, activity),
+             starts_at = COALESCE($3, starts_at),
+             ends_at = COALESCE($4, ends_at),
+             publication_status = $5
+           WHERE id = $1`,
+          [
+            assignmentId,
+            change.rows[0].proposed_activity,
+            change.rows[0].proposed_starts_at,
+            change.rows[0].proposed_ends_at,
+            nextStatus,
+          ],
+        );
+        await db.query(`UPDATE crew.change_requests SET applied_at = now() WHERE id = $1`, [change.rows[0].id]);
+      } else {
+        await db.query(`UPDATE crew.assignments SET publication_status = $2 WHERE id = $1`, [assignmentId, nextStatus]);
+      }
+      const { rows } = await db.query(
+        `SELECT id, publication_status FROM crew.assignments WHERE id = $1`,
+        [assignmentId],
+      );
+      return rows[0];
+    });
+  }
+
+  requestAssignmentChange(
+    req: HaveRequest,
+    assignmentId: string,
+    body: { reason?: string; activity?: string; startsAt?: string; endsAt?: string },
+  ) {
+    const reason = body.reason?.trim() ?? '';
+    if (!reason) throw new BadRequestException('A reason is required');
+    const visible = this.visibility(req, 2);
+    return this.read(req, 'crew', async (db) => {
+      const current = await db.query(
+        `SELECT a.id, a.worker_id
+         FROM crew.assignments a
+         JOIN crew.workers w ON w.id = a.worker_id
+         WHERE a.id = $1 AND a.deleted_at IS NULL AND ${visible.sql}`,
+        [assignmentId, ...visible.params],
+      );
+      if (!current.rows[0]) throw new NotFoundException('Assignment not found');
+      const { rows } = await db.query(
+        `INSERT INTO crew.change_requests (
+           assignment_id, worker_id, requested_by, proposed_activity, proposed_starts_at, proposed_ends_at, reason
+         )
+         VALUES ($1, $2, $3, $4, $5::timestamptz, $6::timestamptz, $7)
+         RETURNING id, status`,
+        [
+          assignmentId,
+          current.rows[0].worker_id,
+          req.user?.sub ?? 'unknown',
+          body.activity?.trim() || null,
+          body.startsAt || null,
+          body.endsAt || null,
+          reason,
+        ],
+      );
+      return rows[0];
+    });
+  }
+
+  reviewChangeRequest(req: HaveRequest, requestId: string, body: { decision?: string; note?: string }) {
+    if (!this.canPublish(req)) throw new ForbiddenException('This profile cannot review a change');
+    const decision = body.decision === 'reject' ? 'rejected' : body.decision === 'cancel' ? 'cancelled' : 'approved';
+    return this.read(req, 'crew', async (db) => {
+      const { rows } = await db.query(
+        `UPDATE crew.change_requests
+         SET status = $2, reviewed_by = $3, review_note = $4
+         WHERE id = $1 AND deleted_at IS NULL AND status = 'requested'
+         RETURNING id, assignment_id, status`,
+        [requestId, decision, req.user?.sub ?? null, body.note?.trim() || null],
+      );
+      if (!rows[0]) throw new NotFoundException('Change request not found');
+      return rows[0];
+    });
+  }
+
+  addPreviousExperience(
+    req: HaveRequest,
+    workerId: string,
+    body: { origin?: string; flightMinutes?: number; asOf?: string; functionCode?: string; registration?: string; note?: string },
+  ) {
+    const origin = body.origin?.trim() ?? '';
+    const minutes = Number(body.flightMinutes ?? 0);
+    if (!origin || !Number.isFinite(minutes) || minutes < 0) {
+      throw new BadRequestException('origin and flightMinutes are required');
+    }
+    const visible = this.visibility(req, 2);
+    return this.read(req, 'crew', async (db) => {
+      const worker = await db.query(
+        `SELECT w.id FROM crew.workers w WHERE w.id = $1 AND w.deleted_at IS NULL AND ${visible.sql}`,
+        [workerId, ...visible.params],
+      );
+      if (!worker.rows[0]) throw new NotFoundException('Worker not found');
+      const { rows } = await db.query(
+        `INSERT INTO crew.previous_experience (worker_id, origin, function_code, registration, flight_minutes, as_of, note, review_status)
+         VALUES ($1, $2, $3, $4, $5, $6::date, $7, $8)
+         RETURNING id, origin, flight_minutes, as_of::text AS as_of, review_status`,
+        [
+          workerId,
+          origin,
+          body.functionCode?.trim() || null,
+          body.registration?.trim() || null,
+          Math.round(minutes),
+          body.asOf || null,
+          body.note?.trim() || '',
+          req.user?.profile === 'admin' ? 'accepted' : 'pending_review',
+        ],
+      );
+      return rows[0];
+    });
+  }
+
+  async crewPdf(req: HaveRequest, workerId: string, kind: string) {
+    const detail = await this.crewDetail(req, workerId);
+    const name = String(detail.full_name ?? '');
+    if (kind === 'schedule') {
+      const lines = (detail.assignments as { activity: string; starts_at: string; publication_status: string; flight_code: string | null }[]).map(
+        (row) => `${row.publication_status} ${row.starts_at} ${row.activity} ${row.flight_code ?? ''}`,
+      );
+      return simplePdf(`Schedule ${name}`, lines);
+    }
+    if (kind === 'experience') {
+      const report = detail.experienceReport as {
+        flightMinutes: number;
+        blockMinutes: number;
+        creditedMinutes: number;
+        simulatorMinutes: number;
+        windows: { months: number; flightMinutes: number }[];
+        partialHistory: boolean;
+      };
+      const lines = [
+        `Flight minutes ${report.flightMinutes}`,
+        `Block minutes ${report.blockMinutes}`,
+        `Credited minutes ${report.creditedMinutes}`,
+        `Simulator minutes ${report.simulatorMinutes}`,
+        ...report.windows.map((row) => `${row.months} months ${row.flightMinutes}`),
+        report.partialHistory ? 'Partial history: undated balance is not spread across months' : 'History dated',
+      ];
+      return simplePdf(`Experience ${name}`, lines);
+    }
+    const lines = [
+      `${detail.employee_code} ${detail.position} ${detail.base} ${detail.team}`,
+      `License ${detail.license_number ?? ''} expires ${detail.license_expires ?? ''}`,
+      `Medical fit ${String(detail.medical_fit)}`,
+      ...((detail.documents as { category: string; title: string; review_status: string; validity: string }[]) ?? []).map(
+        (row) => `${row.category} ${row.title} ${row.review_status} ${row.validity}`,
+      ),
+    ];
+    return simplePdf(`Profile ${name}`, lines);
   }
 
   setPreferredLanguage(req: HaveRequest, language: string) {

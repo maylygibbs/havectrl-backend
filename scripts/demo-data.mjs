@@ -221,6 +221,18 @@ export async function seedDemo(client, slug, passwordHash) {
       [code, name, position, base, license, licenseExpires, medicalExpires],
     );
   }
+  await client.query(
+    `UPDATE crew.workers SET team = 'maintenance'
+     WHERE deleted_at IS NULL AND (position ILIKE '%Técnico%' OR position ILIKE '%Tecnico%')`,
+  );
+  await client.query(
+    `UPDATE crew.workers SET team = 'cabin' WHERE deleted_at IS NULL AND position ILIKE '%cabina%'`,
+  );
+  await client.query(
+    `UPDATE crew.workers w SET email = u.email
+     FROM identity.users u
+     WHERE w.deleted_at IS NULL AND lower(u.name) = lower(w.full_name)`,
+  );
 
   for (const [code, activity, starts, ends, notes] of company.duties) {
     const worker = await workerId(client, code);
@@ -291,6 +303,34 @@ export async function seedDemo(client, slug, passwordHash) {
        WHERE NOT EXISTS (SELECT 1 FROM flights.logs WHERE flight_id = $1)`,
       [flight, block, flightMinutes, cycles, pilot, review, notes],
     );
+    if (review === 'reviewed' || review === 'confirmed') {
+      const worker = await client.query(
+        `SELECT id FROM crew.workers WHERE lower(full_name) = lower($1) AND deleted_at IS NULL`,
+        [pilot],
+      );
+      if (worker.rows[0]) {
+        await client.query(
+          `INSERT INTO flights.log_crew (flight_id, worker_id, function_code, counts_as_flight)
+           SELECT $1, $2, 'PIC', true
+           WHERE NOT EXISTS (
+             SELECT 1 FROM flights.log_crew WHERE flight_id = $1 AND worker_id = $2 AND deleted_at IS NULL
+           )`,
+          [flight, worker.rows[0].id],
+        );
+        await client.query(
+          `INSERT INTO crew.experience_movements (
+             worker_id, source, source_key, registration, function_code,
+             flight_minutes, block_minutes, credited_minutes, occurred_on, counts_as_flight
+           )
+           SELECT $1, 'daily_log', f.id, a.registration, 'PIC', $3, $4, $3, f.flight_date, true
+           FROM flights.flights f
+           JOIN aircraft.aircraft a ON a.id = f.aircraft_id
+           WHERE f.id = $2
+           ON CONFLICT (worker_id, source, source_key) DO NOTHING`,
+          [worker.rows[0].id, flight, flightMinutes, block],
+        );
+      }
+    }
   }
 
   for (const [code, kind, provider, status, amount, currency] of company.services) {
