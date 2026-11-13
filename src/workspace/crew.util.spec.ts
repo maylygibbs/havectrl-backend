@@ -23,6 +23,16 @@ describe('normalizeCrew', () => {
     expect(row.fullName).toBe('Ana Rivas');
     expect(row.licenseNumber).toBe('YV-1');
     expect(row.status).toBe('active');
+    expect(row.team).toBe('operations');
+  });
+
+  it('rejects an unknown team', () => {
+    expect(() =>
+      normalizeCrew(
+        { employeeCode: 'DA-1', fullName: 'Ana', position: 'Piloto', base: 'SVMI', team: 'fleet' },
+        true,
+      ),
+    ).toThrow(BadRequestException);
   });
 
   it('allows partial updates', () => {

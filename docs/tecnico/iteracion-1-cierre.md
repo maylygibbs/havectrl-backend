@@ -33,10 +33,10 @@ Las **APIs externas** (mapas, ADS-B, clima, Lido, etc.) son **Iteración 2**; no
 
 ### Crew
 
-- [x] Data: CRUD + soft delete + ficha (assignments, experience demo)
-- [x] Documentos por sección (`worker_documents`) + adjuntos `module=crew` — ver `ui-crew-v02.md`
-- [x] Schedule: listado global + alta/baja manual de assignments — `crew-cierre-1a.md` (monorepo `/docs`)
-- [x] Experience: lectura demo documentada hasta LOG 1B — `crew-experiencia-demo.md`
+- [x] Data: CRUD + soft delete + ficha — [08-crew-iteracion-1.md](../producto/08-crew-iteracion-1.md)
+- [x] Documentos por sección (`worker_documents`) + adjuntos `module=crew` — [08-crew-iteracion-1.md](../producto/08-crew-iteracion-1.md)
+- [x] Schedule: listado global + alta/baja manual de assignments — mismo documento
+- [x] Experience: el LOG confirmado acredita; el rol previsto no — mismo documento
 - [x] UI V02 lámina 02 (Data / Schedule / Experience)
 
 ### Aircraft

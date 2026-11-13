@@ -13,7 +13,7 @@ Checklist de cierre del MVP completo (1A+1B+1C): [iteracion-1-cierre.md](./itera
 | SMS reservado | Bandeja y conteo Home solo `admin` / `jefe_sms` | Hecho |
 | Crew Data | CRUD + soft delete + detalle plano | Hecho |
 | Crew Schedule | Listado global + alta/baja manual de assignments | Hecho |
-| Crew Experience | Lectura desde seed / LOG futuro | Hecho (demo 1A; LOG en 1B) |
+| Crew Experience | Sale del LOG confirmado; el rol previsto no acredita | Hecho — [08-crew-iteracion-1.md](../producto/08-crew-iteracion-1.md) |
 | Crew documentos | Secciones Vol. 02 + adjuntos | Hecho (`007`, `/files` crew) |
 | Aircraft | Ficha, documentos CRUD, discrepancias, historial | Hecho (documentos CRUD en esta entrega) |
 | Settings | Compañía editable + usuarios + cambio de rol (perfil) | Hecho (esta entrega) |

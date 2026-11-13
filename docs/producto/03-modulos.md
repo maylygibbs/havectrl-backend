@@ -16,19 +16,11 @@ HAVECTRL registra pagos y comprobantes. No mueve el dinero.
 
 ## Crew
 
-Tres pestañas: Data, Schedule y Experience.
-
-Data cubre identidad, empleo, licencias, habilitaciones, instructor, médico, idiomas, pasaporte y visa, tallas y formación. Cada documento tiene revisión y vigencia por separado: aceptado puede estar vencido, y uno futuro no desplaza al vigente. El trabajador propone; el responsable acepta. Subir un archivo no habilita a la persona.
-
-Schedule publica el rol de servicio. Las actividades son vuelo, trabajo, guardia, día libre, descanso, formación, ausencia e indisponible. Día libre, descanso y ausencia no son lo mismo. Cada jefe publica solo su equipo. El trabajador pide un cambio; el calendario no se mueve hasta que se aprueba y se publica.
-
-El generador automático propone un borrador con cobertura, días libres y reparto. No publica solo. Usa reglas del operador. Si no hay regla, el resultado es `Not evaluated`, no un rol válido. Este generador es un motor interno, no una API de pago, y el resumen MVP lo deja fuera de la fase 1.
-
-Experience sale del LOG confirmado de quien realmente voló o trabajó. El rol previsto no acredita horas. El simulador no suma vuelo real. El saldo inicial sin fechas no se reparte por meses inventados.
+Tres pestañas: Data, Schedule y Experience. El alcance de la iteración 1 está en [08-crew-iteracion-1.md](08-crew-iteracion-1.md).
 
 ## Aircraft
 
-Cuatro pestañas: Overview, Documents, Discrepancies & Corrective Actions y Flight History.
+Cuatro pestañas: Overview, Documents, Discrepancies & Corrective Actions y Flight History. El corte de la iteración 1 está en [09-aircraft-iteracion-1.md](09-aircraft-iteracion-1.md).
 
 Overview guarda matrícula, serial, base, equipos instalados y la configuración de peso, rendimiento y cabina, cada una con fuente y validador. Activar la ficha no declara aeronavegabilidad.
 
@@ -38,7 +30,7 @@ Documents es el archivo de esa aeronave, con revisión. Discrepancies es el mism
 
 ## Flights
 
-Siete pestañas, más el manifiesto dentro del plan de vuelo.
+Siete pestañas en el volumen de origen, más el manifiesto dentro del plan de vuelo. El corte de la iteración 1 está en [10-flights-iteracion-1.md](10-flights-iteracion-1.md): cuatro pestañas, sin mapa ni seguimiento.
 
 | Pestaña | Qué hace |
 | --- | --- |
@@ -78,7 +70,7 @@ Los gastos no se capturan en Flights. Si el volumen 04 todavía muestra Expenses
 
 ## Operations Services
 
-Cinco pestañas: Flight Overview, Airport Fees, Operational Services, Payments, Documents & Expenses.
+Cinco pestañas: Flight Overview, Airport Fees, Operational Services, Payments, Documents & Expenses. El corte de la iteración 1 está en [11-operations-iteracion-1.md](11-operations-iteracion-1.md).
 
 El ciclo es solicitado, cotizado, confirmado, recibido, facturado y pagado. Cada estado tiene evidencia. Un mismo documento no crea dos importes. Una obligación es el monto exigible. Pagarla no crea otro gasto.
 
@@ -88,7 +80,7 @@ Documents & Expenses es el único lugar para crear gastos. El piloto firma el su
 
 ## Maintenance
 
-Siete pestañas, en este orden: Overview, Log Review, Inspections, Discrepancies & Corrective Actions, Work Orders, Components & Materials, History.
+Siete pestañas en el volumen 06, en este orden: Overview, Log Review, Inspections, Discrepancies & Corrective Actions, Work Orders, Components & Materials, History. El corte de la iteración 1 está en [12-maintenance-iteracion-1.md](12-maintenance-iteracion-1.md). La duda 3 sigue abierta.
 
 Log Review es la revisión diaria del LOG. Estados: pendiente, borrador de revisión, corrección pedida y revisado. Una discrepancia puede seguir abierta con el LOG ya revisado.
 
@@ -102,7 +94,7 @@ El resumen MVP llama “mantenimiento básico” a inspecciones, discrepancias, 
 
 ## SMS
 
-Siete pestañas: Overview, Safety Reports, Risk Register, Action Plans, Safety Documents, Assurance y Training.
+Siete pestañas: Overview, Safety Reports, Risk Register, Action Plans, Safety Documents, Assurance y Training. El corte de la iteración 1 está en [13-sms-iteracion-1.md](13-sms-iteracion-1.md). La duda 1 sigue abierta.
 
 El flujo es reporte, peligro y riesgo, medida, verificación de eficacia y cierre. El reporte puede ir con nombre o anónimo. El canal anónimo no debe guardar metadatos que identifiquen al autor.
 
@@ -114,7 +106,7 @@ Una instrucción interna se desidentifica, se revisa, se aprueba, se versiona y 
 
 ## Communication
 
-Tres pestañas: Calls, Meetings y Meeting Minutes.
+Tres pestañas: Calls, Meetings y Meeting Minutes. El corte de la iteración 1 está en [14-communication-iteracion-1.md](14-communication-iteracion-1.md).
 
 Una conversación no cambia un rol, no acredita horas y no libera una aeronave. Nadie lee el hilo privado de otro. Nadie enciende la cámara o el micrófono de otro.
 
@@ -124,7 +116,7 @@ Audio, video, transcripción y borrador de minuta con IA quedan para cuando haya
 
 ## Aviation Library
 
-Pestañas: Documents, Reader, Revisions, Bookmarks, Administration y AI Assistant.
+Pestañas: Documents, Reader, Revisions, Bookmarks, Administration y AI Assistant. El corte de la iteración 1 está en [15-library-iteracion-1.md](15-library-iteracion-1.md).
 
 El catálogo guarda título, código, editor, categoría, edición, enmienda, idioma, vigencia, estado y acceso. Current, sustituido, borrador, pendiente y retirado no se mezclan. La fecha de carga no es la vigencia.
 

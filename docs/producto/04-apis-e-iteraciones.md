@@ -18,12 +18,12 @@ Estos módulos se cierran con la base de la compañía, archivos y las reglas de
 | Settings | Usuarios, roles, idioma, compañía, plantillas y auditoría. La pestaña Integrations existe para mostrar `Not configured`. |
 | Crew | Fichas, documentos, rol manual y experiencia derivada del LOG. |
 | Aircraft | Ficha, contadores, documentos, discrepancias e historial de vuelos ya registrados. |
-| Operations Services | Solicitudes, tasas, gastos, comprobantes y pagos registrados a mano. El enlace de pago del ente es una URL, no una pasarela integrada. |
-| Maintenance, alcance básico | Inspecciones, discrepancias, acciones, evidencia, Log Review y liberación separada del cierre administrativo. |
-| SMS | Las siete pestañas, con reserva del expediente. No reporta solo a una autoridad. |
-| Communication, sin llamada | Agenda, convocatoria, acta manual o cargada, revisión, firmas y versiones. |
-| Aviation Library, sin IA | Catálogo, lector, versiones, marcadores y administración de los PDF que el operador suba. |
-| Flights, parte interna | Alta del vuelo y tramos, FPL Venezuela en PDF, DLA/CHG/CNL, manifiesto, Daily Log, eventos offline, conversor y adjunto de peso y balance. |
+| Operations Services | Solicitudes, tasas, gastos, comprobantes y pagos registrados a mano. El enlace de pago del ente es una URL, no una pasarela integrada. El detalle está en [11-operations-iteracion-1.md](11-operations-iteracion-1.md). |
+| Maintenance, alcance básico | Inspecciones, discrepancias, acciones, evidencia, Log Review y liberación separada del cierre administrativo. El detalle está en [12-maintenance-iteracion-1.md](12-maintenance-iteracion-1.md). |
+| SMS | Las siete pestañas, con reserva del expediente. No reporta solo a una autoridad. El corte ya construido está en [13-sms-iteracion-1.md](13-sms-iteracion-1.md). |
+| Communication, sin llamada | Agenda, convocatoria, acta manual o cargada, revisión, firmas y versiones. El corte ya construido está en [14-communication-iteracion-1.md](14-communication-iteracion-1.md). |
+| Aviation Library, sin IA | Catálogo, lector, versiones, marcadores y administración de los PDF que el operador suba. El corte ya construido está en [15-library-iteracion-1.md](15-library-iteracion-1.md). |
+| Flights, parte interna | Alta del vuelo y tramos, FPL Venezuela en PDF, DLA/CHG/CNL, manifiesto, Daily Log, eventos offline, conversor y adjunto de peso y balance. El detalle del corte está en [10-flights-iteracion-1.md](10-flights-iteracion-1.md). |
 
 El generador de roles y el cálculo de peso y balance tampoco llaman a una API de pago. Aun así no entran en la iteración 1: el resumen los deja como ampliación.
 
@@ -48,7 +48,7 @@ Condiciones antes de comprar: cotización, licencia, cobertura Venezuela y LATAM
 
 ### 1A. Base
 
-Compañías aisladas. Usuarios, roles y permisos de la matriz, con la duda SMS sin ampliar lectura. Crew en Data, Schedule manual y Experience. Aircraft en ficha, documentos y saldos. Archivos y respaldo.
+Compañías aisladas. Usuarios, roles y permisos de la matriz, con la duda SMS sin ampliar lectura. Crew en Data, Schedule manual y Experience ([08-crew-iteracion-1.md](08-crew-iteracion-1.md)). Aircraft en ficha, documentos y saldos ([09-aircraft-iteracion-1.md](09-aircraft-iteracion-1.md)). Archivos y respaldo.
 
 ### 1B. Operación
 

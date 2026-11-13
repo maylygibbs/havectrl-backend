@@ -29,6 +29,25 @@ export class WorkspaceController {
     return this.workspace.assignableFlights(req);
   }
 
+  @Put('crew/assignments/:assignmentId')
+  updateCrewAssignment(
+    @Req() req: HaveRequest,
+    @Param('assignmentId') assignmentId: string,
+    @Body()
+    body: {
+      activity?: string;
+      startsAt?: string;
+      endsAt?: string;
+      notes?: string;
+      flightCode?: string;
+      origin?: string;
+      destination?: string;
+      aircraftRegistration?: string;
+    },
+  ) {
+    return this.workspace.updateCrewAssignment(req, assignmentId, body);
+  }
+
   @Delete('crew/assignments/:assignmentId')
   softDeleteCrewAssignment(@Req() req: HaveRequest, @Param('assignmentId') assignmentId: string) {
     return this.workspace.softDeleteCrewAssignment(req, assignmentId);
@@ -171,6 +190,41 @@ export class WorkspaceController {
     return this.workspace.aircraft(req);
   }
 
+  @Post('aircraft')
+  createAircraft(
+    @Req() req: HaveRequest,
+    @Body()
+    body: {
+      registration?: string;
+      model?: string;
+      serialNumber?: string;
+      base?: string;
+      technicalStatus?: string;
+      airframeHours?: number | null;
+      airframeCycles?: number | null;
+    },
+  ) {
+    return this.workspace.createAircraft(req, body);
+  }
+
+  @Put('aircraft/:id')
+  updateAircraft(
+    @Req() req: HaveRequest,
+    @Param('id') id: string,
+    @Body()
+    body: {
+      registration?: string;
+      model?: string;
+      serialNumber?: string;
+      base?: string;
+      technicalStatus?: string;
+      airframeHours?: number | null;
+      airframeCycles?: number | null;
+    },
+  ) {
+    return this.workspace.updateAircraft(req, id, body);
+  }
+
   @Get('aircraft/:id')
   aircraftDetail(@Req() req: HaveRequest, @Param('id') id: string) {
     return this.workspace.aircraftDetail(req, id);
@@ -289,9 +343,71 @@ export class WorkspaceController {
     return this.workspace.services(req);
   }
 
+  @Post('operations/services')
+  createService(
+    @Req() req: HaveRequest,
+    @Body()
+    body: {
+      flightId?: string | null;
+      kind?: string;
+      provider?: string;
+      status?: string;
+      amount?: number;
+      currency?: string;
+      airport?: string | null;
+      officialUrl?: string | null;
+    },
+  ) {
+    return this.workspace.createService(req, body);
+  }
+
   @Get('operations/expenses')
   expenses(@Req() req: HaveRequest) {
     return this.workspace.expenses(req);
+  }
+
+  @Post('operations/expenses')
+  createExpense(
+    @Req() req: HaveRequest,
+    @Body()
+    body: {
+      flightId?: string | null;
+      category?: string;
+      description?: string;
+      amount?: number;
+      currency?: string;
+      status?: string;
+    },
+  ) {
+    return this.workspace.createExpense(req, body);
+  }
+
+  @Put('operations/expenses/:id/status')
+  updateExpenseStatus(@Req() req: HaveRequest, @Param('id') id: string, @Body() body: { status?: string }) {
+    return this.workspace.updateExpenseStatus(req, id, body.status ?? '');
+  }
+
+  @Get('operations/payments')
+  payments(@Req() req: HaveRequest) {
+    return this.workspace.payments(req);
+  }
+
+  @Post('operations/payments')
+  createPayment(
+    @Req() req: HaveRequest,
+    @Body()
+    body: {
+      serviceId?: string | null;
+      expenseId?: string | null;
+      amount?: number;
+      currency?: string;
+      method?: string;
+      status?: string;
+      officialUrl?: string | null;
+      reference?: string;
+    },
+  ) {
+    return this.workspace.createPayment(req, body);
   }
 
   @Get('maintenance/inspections')
@@ -299,14 +415,54 @@ export class WorkspaceController {
     return this.workspace.inspections(req);
   }
 
+  @Post('maintenance/inspections')
+  createInspection(
+    @Req() req: HaveRequest,
+    @Body() body: { aircraftId?: string; title?: string; dueDate?: string | null; dueHours?: number | null; status?: string },
+  ) {
+    return this.workspace.createInspection(req, body);
+  }
+
   @Get('maintenance/discrepancies')
   discrepancies(@Req() req: HaveRequest) {
     return this.workspace.discrepancies(req);
   }
 
+  @Post('maintenance/discrepancies')
+  createDiscrepancy(
+    @Req() req: HaveRequest,
+    @Body()
+    body: {
+      aircraftId?: string;
+      flightId?: string | null;
+      title?: string;
+      description?: string;
+      correctiveAction?: string;
+      status?: string;
+    },
+  ) {
+    return this.workspace.createDiscrepancy(req, body);
+  }
+
   @Get('maintenance/work-orders')
   workOrders(@Req() req: HaveRequest) {
     return this.workspace.workOrders(req);
+  }
+
+  @Post('maintenance/work-orders')
+  createWorkOrder(
+    @Req() req: HaveRequest,
+    @Body()
+    body: {
+      aircraftId?: string;
+      discrepancyId?: string | null;
+      title?: string;
+      assignedTo?: string;
+      status?: string;
+      evidence?: string;
+    },
+  ) {
+    return this.workspace.createWorkOrder(req, body);
   }
 
   @Get('maintenance/log-review')
@@ -327,14 +483,67 @@ export class WorkspaceController {
     return this.workspace.createSmsReport(req, body);
   }
 
+  @Put('sms/reports/:id/status')
+  updateSmsStatus(@Req() req: HaveRequest, @Param('id') id: string, @Body() body: { status?: string }) {
+    return this.workspace.updateSmsStatus(req, id, body.status ?? '');
+  }
+
   @Get('communication/meetings')
   meetings(@Req() req: HaveRequest) {
     return this.workspace.meetings(req);
   }
 
+  @Post('communication/meetings')
+  createMeeting(
+    @Req() req: HaveRequest,
+    @Body() body: { title?: string; startsAt?: string; agenda?: string; status?: string; locationUrl?: string | null },
+  ) {
+    return this.workspace.createMeeting(req, body);
+  }
+
+  @Put('communication/meetings/:id/minutes')
+  updateMeetingMinutes(
+    @Req() req: HaveRequest,
+    @Param('id') id: string,
+    @Body() body: { minutes?: string; minutesStatus?: string },
+  ) {
+    return this.workspace.updateMeetingMinutes(req, id, body);
+  }
+
   @Get('library/documents')
   documents(@Req() req: HaveRequest) {
     return this.workspace.documents(req);
+  }
+
+  @Post('library/documents')
+  createDocument(
+    @Req() req: HaveRequest,
+    @Body()
+    body: {
+      code?: string;
+      title?: string;
+      category?: string;
+      edition?: string;
+      amendment?: string;
+      language?: string;
+      reference?: string;
+      status?: string;
+    },
+  ) {
+    return this.workspace.createDocument(req, body);
+  }
+
+  @Get('library/bookmarks')
+  bookmarks(@Req() req: HaveRequest) {
+    return this.workspace.bookmarks(req);
+  }
+
+  @Post('library/bookmarks')
+  createBookmark(
+    @Req() req: HaveRequest,
+    @Body() body: { documentId?: string; page?: number; note?: string },
+  ) {
+    return this.workspace.createBookmark(req, body);
   }
 
   @Get('settings/company')
