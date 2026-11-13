@@ -1,0 +1,12 @@
+---
+description: El cambio lleva test y no se declara listo sin npm test.
+alwaysApply: true
+---
+
+# Testing
+
+Detalle: `docs/reglas/01-testing.md`.
+
+- Bugfix: primero el test que reproduce.
+- Verificación: `npm test`. Si el diff compila o toca SQL, tenancy o controladores, también `npm run build`.
+- Reporta el comando y el resultado. No inventes otro runner.

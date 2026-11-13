@@ -1,6 +1,7 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigRegistry } from '../tenancy/config-registry';
+import { assertTenantSession, TenantSessionError } from './tenant-session';
 import { bindTenant, HaveRequest } from '../tenancy/tenant.middleware';
 
 @Injectable()
@@ -19,12 +20,12 @@ export class AuthGuard implements CanActivate {
     try {
       const payload = this.jwt.verify<{ sub?: string; tenantId?: string; name?: string; profile?: string }>(header.slice(7));
       bindTenant(req, this.registry);
-      if (!req.tenantSlug) throw new UnauthorizedException('Dominio no registrado');
-      if (payload.tenantId !== req.tenantSlug) throw new UnauthorizedException('Sesión de otro dominio');
+      assertTenantSession(payload, req.tenantSlug);
       req.user = payload;
       return true;
     } catch (err) {
       if (err instanceof UnauthorizedException) throw err;
+      if (err instanceof TenantSessionError) throw new UnauthorizedException(err.message);
       throw new UnauthorizedException('Sesión inválida');
     }
   }

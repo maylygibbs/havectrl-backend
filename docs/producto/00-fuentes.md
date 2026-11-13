@@ -40,3 +40,5 @@ Este paquete es la especificación de producto. No sustituye los manuales del op
 4. Una pantalla de demostración no cuenta como función terminada.
 
 Los choques que no se pueden cerrar con esa regla están en [05-dudas.md](05-dudas.md).
+
+El avance de implementación de la iteración 1 (soft delete, Crew, idioma) está en [07-iteracion1-avance.md](07-iteracion1-avance.md). El alcance de Crew está en [08-crew-iteracion-1.md](08-crew-iteracion-1.md), el de Aircraft en [09-aircraft-iteracion-1.md](09-aircraft-iteracion-1.md), el de Flights en [10-flights-iteracion-1.md](10-flights-iteracion-1.md), el de Operations Services en [11-operations-iteracion-1.md](11-operations-iteracion-1.md), el de Maintenance en [12-maintenance-iteracion-1.md](12-maintenance-iteracion-1.md), el de SMS en [13-sms-iteracion-1.md](13-sms-iteracion-1.md), el de Communication en [14-communication-iteracion-1.md](14-communication-iteracion-1.md) y el de Aviation Library en [15-library-iteracion-1.md](15-library-iteracion-1.md).

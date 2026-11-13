@@ -1,0 +1,13 @@
+---
+description: Controladores delgados y módulo autorizado antes de leer o escribir.
+globs: src/**/*.controller.ts
+alwaysApply: false
+---
+
+# API
+
+Detalle: `docs/reglas/03-api-http.md`.
+
+- `assertModule` antes de la consulta o el cambio.
+- La regla testeable va en `*.util.ts`, no solo en el controlador.
+- Un fallo no responde éxito. No devuelvas secretos.

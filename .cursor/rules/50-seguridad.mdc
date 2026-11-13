@@ -1,0 +1,12 @@
+---
+description: Secretos, fail-closed y nada de push directo a main.
+alwaysApply: true
+---
+
+# Seguridad
+
+Detalle: `docs/reglas/06-seguridad.md` y reglas 1, 3 y 9 de `docs/REGLAS_DE_ORO.md`.
+
+- No versionar `.env`, `JWT_SECRET`, contraseñas ni dumps. Si filtró a un remoto, rotar.
+- Perfil o módulo ausente del mapa = denegado.
+- No push directo a `main`. El merge lo hace una persona.
